@@ -31,13 +31,25 @@ jobs:
           cd generation_two
           pip install -r requirements.txt
 
-      - name: Copy constants file if needed
+      - name: Ensure constants file exists
         run: |
-          if [ ! -f "generation_two/constants/operatorRAW.json" ] && [ -f "constants/operatorRAW.json" ]; then
+          echo "Checking for constants file..."
+          if [ -f "generation_two/constants/operatorRAW.json" ]; then
+            echo "✓ File already exists in generation_two/constants/"
+          elif [ -f "constants/operatorRAW.json" ]; then
             mkdir -p generation_two/constants
             cp constants/operatorRAW.json generation_two/constants/
             echo "✓ Copied constants file from root"
+          else
+            echo "❌ ERROR: operatorRAW.json not found!"
+            find . -name "operatorRAW.json" -type f 2>/dev/null || echo "  (none found)"
+            exit 1
           fi
+          if [ ! -f "generation_two/constants/operatorRAW.json" ]; then
+            echo "❌ ERROR: File verification failed!"
+            exit 1
+          fi
+          echo "✓ Constants file verified"
 
       - name: Build EXE
         run: |
@@ -75,13 +87,25 @@ jobs:
           cd generation_two
           pip install -r requirements.txt
 
-      - name: Copy constants file if needed
+      - name: Ensure constants file exists
         run: |
-          if [ ! -f "generation_two/constants/operatorRAW.json" ] && [ -f "constants/operatorRAW.json" ]; then
+          echo "Checking for constants file..."
+          if [ -f "generation_two/constants/operatorRAW.json" ]; then
+            echo "✓ File already exists in generation_two/constants/"
+          elif [ -f "constants/operatorRAW.json" ]; then
             mkdir -p generation_two/constants
             cp constants/operatorRAW.json generation_two/constants/
             echo "✓ Copied constants file from root"
+          else
+            echo "❌ ERROR: operatorRAW.json not found!"
+            find . -name "operatorRAW.json" -type f 2>/dev/null || echo "  (none found)"
+            exit 1
           fi
+          if [ ! -f "generation_two/constants/operatorRAW.json" ]; then
+            echo "❌ ERROR: File verification failed!"
+            exit 1
+          fi
+          echo "✓ Constants file verified"
 
       - name: Build DEB
         run: |
@@ -115,13 +139,35 @@ jobs:
           cd generation_two
           pip install -r requirements.txt
 
-      - name: Copy constants file if needed
+      - name: Ensure constants file exists
         run: |
-          if [ ! -f "generation_two/constants/operatorRAW.json" ] && [ -f "constants/operatorRAW.json" ]; then
+          echo "Checking for constants file..."
+          # Check if file exists in generation_two/constants/
+          if [ -f "generation_two/constants/operatorRAW.json" ]; then
+            echo "✓ File already exists in generation_two/constants/"
+            ls -lh generation_two/constants/operatorRAW.json
+          elif [ -f "constants/operatorRAW.json" ]; then
+            echo "Copying from root constants/ directory..."
             mkdir -p generation_two/constants
             cp constants/operatorRAW.json generation_two/constants/
             echo "✓ Copied constants file from root"
+            ls -lh generation_two/constants/operatorRAW.json
+          else
+            echo "❌ ERROR: operatorRAW.json not found!"
+            echo "Searched in:"
+            echo "  - generation_two/constants/operatorRAW.json"
+            echo "  - constants/operatorRAW.json"
+            echo ""
+            echo "Available files:"
+            find . -name "operatorRAW.json" -type f 2>/dev/null || echo "  (none found)"
+            exit 1
           fi
+          # Final verification
+          if [ ! -f "generation_two/constants/operatorRAW.json" ]; then
+            echo "❌ ERROR: File verification failed!"
+            exit 1
+          fi
+          echo "✓ Constants file verified and ready"
 
       - name: Build DMG
         run: |
