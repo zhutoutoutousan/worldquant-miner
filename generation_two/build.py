@@ -18,7 +18,13 @@ def run_command(cmd, check=True, cwd=None):
     print(f"Running: {' '.join(cmd)}")
     if cwd:
         print(f"  Working directory: {cwd}")
-    result = subprocess.run(cmd, check=check, cwd=cwd)
+    # For commands that might fail, capture stderr to show it
+    if not check:
+        result = subprocess.run(cmd, check=check, cwd=cwd, stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0 and result.stderr:
+            print(f"  Error output: {result.stderr}")
+    else:
+        result = subprocess.run(cmd, check=check, cwd=cwd)
     return result.returncode == 0
 
 def build_windows_exe():
@@ -198,7 +204,12 @@ def build_linux_deb():
     # Try py2dsc-deb command first (installed by stdeb)
     py2dsc_deb_cmd = shutil.which("py2dsc-deb")
     if py2dsc_deb_cmd:
-        run_command([py2dsc_deb_cmd, str(tar_file.name)], cwd=dist_dir)
+        # Try command first, but don't fail if it errors - fall back to API
+        print(f"Trying py2dsc-deb command...")
+        result = run_command([py2dsc_deb_cmd, str(tar_file.name)], cwd=dist_dir, check=False)
+        if not result:
+            print(f"[WARN] py2dsc-deb command failed, trying fallback methods...")
+            py2dsc_deb_cmd = None  # Force fallback
     else:
         # Fallback: use Python module (stdeb.command.py2dsc_deb can be called as module)
         print("[WARN] py2dsc-deb not in PATH, trying Python module...")
@@ -421,10 +432,28 @@ app = BUNDLE(
     
     # Create DMG using create-dmg (requires: brew install create-dmg)
     print("Creating DMG...")
+    # PyInstaller creates the app bundle as "GenerationTwo" directory (which is actually the .app)
+    # Check for both GenerationTwo and GenerationTwo.app
+    app_bundle_dir = PROJECT_ROOT / "dist" / "GenerationTwo"
     app_path = PROJECT_ROOT / "dist" / "GenerationTwo.app"
-    dmg_path = SCRIPT_DIR / "dist" / "generation-two.dmg"
     
-    if not app_path.exists():
+    # If GenerationTwo exists as directory, check if it's a valid app bundle
+    if app_bundle_dir.exists() and app_bundle_dir.is_dir():
+        # Check if it has the app bundle structure (Contents/MacOS)
+        contents_dir = app_bundle_dir / "Contents"
+        if contents_dir.exists():
+            # It's a valid app bundle, rename to .app extension
+            print(f"[OK] Found app bundle directory, renaming to .app extension...")
+            if app_path.exists():
+                shutil.rmtree(app_path)
+            app_bundle_dir.rename(app_path)
+            print(f"[OK] Renamed to: {app_path}")
+        else:
+            # Not a valid app bundle structure
+            print(f"[ERROR] GenerationTwo directory exists but is not a valid app bundle")
+            print(f"   Expected Contents/ directory inside")
+            raise FileNotFoundError(f"Invalid app bundle structure: {app_bundle_dir}")
+    elif not app_path.exists():
         print(f"[ERROR] App bundle not found: {app_path}")
         print(f"   Checking dist directory: {PROJECT_ROOT / 'dist'}")
         if (PROJECT_ROOT / "dist").exists():
