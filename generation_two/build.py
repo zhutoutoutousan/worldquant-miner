@@ -170,7 +170,8 @@ def build_linux_deb():
     print("Converting to DEB...")
     # Source dist is created in PROJECT_ROOT/dist when run from project root
     dist_dir = PROJECT_ROOT / "dist"
-    tar_files = list(dist_dir.glob("generation-two-*.tar.gz"))
+    # Try both patterns: generation_two (underscore) and generation-two (hyphen)
+    tar_files = list(dist_dir.glob("generation_two-*.tar.gz")) + list(dist_dir.glob("generation-two-*.tar.gz"))
     if not tar_files:
         print(f"❌ Source distribution not found in {dist_dir}")
         print(f"   Files in dist: {list(dist_dir.glob('*')) if dist_dir.exists() else 'dist/ does not exist'}")
@@ -181,7 +182,22 @@ def build_linux_deb():
     run_command([sys.executable, "-m", "stdeb", str(tar_file.name)], cwd=dist_dir)
     
     # Find and move deb file
-    deb_files = list(PROJECT_ROOT.rglob("*.deb"))
+    # stdeb creates deb files in deb_dist/ subdirectory
+    deb_dist_dir = dist_dir / "deb_dist"
+    deb_files = []
+    
+    # First check deb_dist directory (where stdeb puts them)
+    if deb_dist_dir.exists():
+        deb_files = list(deb_dist_dir.rglob("*.deb"))
+        print(f"Checking deb_dist directory: {deb_dist_dir}")
+        if deb_files:
+            print(f"Found {len(deb_files)} DEB file(s) in deb_dist")
+    
+    # If not found, search entire project
+    if not deb_files:
+        deb_files = list(PROJECT_ROOT.rglob("*.deb"))
+        print(f"Searching entire project for .deb files...")
+    
     if deb_files:
         deb_file = deb_files[0]
         target_path = SCRIPT_DIR / "dist" / deb_file.name
@@ -190,6 +206,12 @@ def build_linux_deb():
         print(f"✅ Linux DEB built: {target_path}")
     else:
         print("❌ DEB file not found")
+        print(f"   Searched in: {deb_dist_dir}")
+        print(f"   And recursively in: {PROJECT_ROOT}")
+        if deb_dist_dir.exists():
+            print(f"   Files in deb_dist: {list(deb_dist_dir.iterdir())}")
+        if dist_dir.exists():
+            print(f"   Files in dist: {list(dist_dir.iterdir())}")
 
 def build_macos_dmg():
     """Build macOS DMG package"""
@@ -295,9 +317,10 @@ app = BUNDLE(
     print(f"✓ Created spec file: {spec_file}")
     
     # Build app bundle using spec file
+    # Note: Don't use --windowed flag when using a spec file - it's already in the spec
     print(f"✓ Building with spec file: {spec_file}")
     run_command(
-        [sys.executable, "-m", "PyInstaller", "--clean", "--windowed", str(spec_file)],
+        [sys.executable, "-m", "PyInstaller", "--clean", str(spec_file)],
         cwd=PROJECT_ROOT
     )
     

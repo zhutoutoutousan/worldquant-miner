@@ -32,6 +32,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Ensure constants file exists
+        shell: bash
         run: |
           echo "Checking for constants file..."
           if [ -f "generation_two/constants/operatorRAW.json" ]; then
