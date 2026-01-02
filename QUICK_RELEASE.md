@@ -2,7 +2,29 @@
 
 ## TL;DR - How to Release
 
-### Method 1: Tag-Based Release (Automatic)
+### Method 1: Use Release Script (Easiest! ⭐)
+```powershell
+# Windows PowerShell
+.\release.ps1
+
+# Or with auto-increment
+.\release.ps1 --patch    # 1.0.0 -> 1.0.1
+.\release.ps1 --minor    # 1.0.0 -> 1.1.0
+.\release.ps1 --major    # 1.0.0 -> 2.0.0
+```
+
+```bash
+# Linux/Mac
+chmod +x release.sh
+./release.sh
+
+# Or with auto-increment
+./release.sh --patch
+./release.sh --minor
+./release.sh --major
+```
+
+### Method 2: Manual Tag-Based Release
 ```bash
 # 1. Commit your changes
 git add .
