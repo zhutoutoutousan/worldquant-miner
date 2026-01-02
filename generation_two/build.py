@@ -432,6 +432,8 @@ app = BUNDLE(
     
     # Create DMG using create-dmg (requires: brew install create-dmg)
     print("Creating DMG...")
+    # Define paths first
+    dmg_path = SCRIPT_DIR / "dist" / "generation-two.dmg"
     # PyInstaller creates the app bundle as "GenerationTwo" directory (which is actually the .app)
     # Check for both GenerationTwo and GenerationTwo.app
     app_bundle_dir = PROJECT_ROOT / "dist" / "GenerationTwo"
