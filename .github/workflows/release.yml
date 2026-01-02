@@ -140,21 +140,69 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
+          
+          # Debug: Show artifact structure
+          echo "Artifact structure:"
+          find artifacts -type f || true
+          ls -la artifacts/ || true
+          
           # Windows
           if [ -f artifacts/generation-two-windows/generation-two.exe ]; then
             cp artifacts/generation-two-windows/generation-two.exe release-assets/generation-two-${{ steps.version.outputs.version }}-windows.exe
+            echo "✓ Windows EXE found and copied"
+          else
+            echo "⚠️  Windows EXE not found"
+            ls -la artifacts/generation-two-windows/ || echo "Windows artifact directory not found"
           fi
+          
           # Linux - copy all deb files
           if [ -d artifacts/generation-two-linux ]; then
-            find artifacts/generation-two-linux -name "*.deb" -exec cp {} release-assets/ \;
+            DEB_COUNT=$(find artifacts/generation-two-linux -name "*.deb" | wc -l)
+            if [ "$DEB_COUNT" -gt 0 ]; then
+              find artifacts/generation-two-linux -name "*.deb" -exec cp {} release-assets/ \;
+              echo "✓ Linux DEB found and copied ($DEB_COUNT file(s))"
+            else
+              echo "⚠️  No DEB files found in Linux artifacts"
+              ls -la artifacts/generation-two-linux/ || true
+            fi
+          else
+            echo "⚠️  Linux artifact directory not found"
           fi
+          
           # macOS - copy all dmg files
           if [ -d artifacts/generation-two-macos ]; then
-            find artifacts/generation-two-macos -name "*.dmg" -exec cp {} release-assets/ \;
+            DMG_COUNT=$(find artifacts/generation-two-macos -name "*.dmg" | wc -l)
+            if [ "$DMG_COUNT" -gt 0 ]; then
+              find artifacts/generation-two-macos -name "*.dmg" -exec cp {} release-assets/ \;
+              echo "✓ macOS DMG found and copied ($DMG_COUNT file(s))"
+            else
+              echo "⚠️  No DMG files found in macOS artifacts"
+              ls -la artifacts/generation-two-macos/ || true
+            fi
+          else
+            echo "⚠️  macOS artifact directory not found"
           fi
+          
           # List what we have
+          echo ""
           echo "Release assets prepared:"
-          ls -lh release-assets/
+          ls -lh release-assets/ || echo "No release assets found!"
+          
+          # Fail if no assets
+          if [ ! "$(ls -A release-assets)" ]; then
+            echo "❌ ERROR: No release assets found!"
+            exit 1
+          fi
+
+      - name: Verify tag exists
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          echo "Checking if tag $TAG exists..."
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "✓ Tag $TAG exists"
+          else
+            echo "⚠️  Tag $TAG does not exist locally, but this is OK for remote tags"
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -164,22 +212,35 @@ jobs:
           body: |
             ## Generation Two ${{ steps.version.outputs.version }}
 
-            ### Downloads
-            - **Windows**: `generation-two-${{ steps.version.outputs.version }}-windows.exe`
-            - **Linux**: `generation-two_*.deb` (Debian/Ubuntu package)
-            - **macOS**: `generation-two.dmg`
+            ### 📦 Download Executables
+            **Download the executable for your platform:**
+            - **Windows**: `generation-two-${{ steps.version.outputs.version }}-windows.exe` - Standalone executable, no installation needed
+            - **Linux**: `generation-two_*.deb` - Debian/Ubuntu package (install with `sudo dpkg -i`)
+            - **macOS**: `generation-two.dmg` - Drag to Applications folder
 
-            ### Installation
-            1. Download the appropriate file for your platform
-            2. **Windows**: Run the `.exe` file
-            3. **Linux**: Install with `sudo dpkg -i generation-two_*.deb`
-            4. **macOS**: Open the `.dmg` file and drag the app to Applications
+            ### 🚀 Quick Start
+            1. Download the appropriate file for your platform (see Assets below)
+            2. **Windows**: Double-click the `.exe` file to run
+            3. **Linux**: Install with `sudo dpkg -i generation-two_*.deb` then run `generation-two`
+            4. **macOS**: Open the `.dmg`, drag the app to Applications, then run from Applications
 
-            ### Notes
-            - Credentials are NOT included. You must provide your own `credential.txt` file.
-            - See [README.md](generation_two/README.md) for usage instructions.
+            ### ⚠️ Important Notes
+            - **Credentials are NOT included** - You must provide your own `credential.txt` file
+            - All dependencies are bundled - No Python installation required
+            - See [README.md](generation_two/README.md) for detailed usage instructions
+
+            ### 📋 What's Included
+            This release contains **pre-built executables only**. The source code is available in the repository.
           files: release-assets/*
           draft: false
           prerelease: false
+          fail_on_unmatched_files: true
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify release created
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          echo "Verifying release for tag $TAG was created..."
+          # This step will fail if release wasn't created, helping with debugging

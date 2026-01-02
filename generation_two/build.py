@@ -34,17 +34,40 @@ def build_windows_exe():
         print("Installing PyInstaller...")
         run_command([sys.executable, "-m", "pip", "install", "pyinstaller"])
     
+    # Verify files exist
+    gui_script = SCRIPT_DIR / "gui" / "run_gui.py"
+    constants_file = SCRIPT_DIR / "constants" / "operatorRAW.json"
+    
+    if not gui_script.exists():
+        raise FileNotFoundError(f"GUI script not found: {gui_script}")
+    if not constants_file.exists():
+        raise FileNotFoundError(f"Constants file not found: {constants_file}")
+    
+    # Use absolute paths and ensure they're properly formatted
+    # Convert to string and normalize (use forward slashes for PyInstaller compatibility)
+    gui_script_abs = gui_script.resolve()
+    constants_file_abs = constants_file.resolve()
+    project_root_abs = PROJECT_ROOT.resolve()
+    
+    gui_script_str = str(gui_script_abs).replace('\\', '/')
+    constants_file_str = str(constants_file_abs).replace('\\', '/')
+    project_root_str = str(project_root_abs).replace('\\', '/')
+    
+    print(f"  GUI script: {gui_script_abs}")
+    print(f"  Constants: {constants_file_abs}")
+    print(f"  Project root: {project_root_abs}")
+    
     # Create spec file in project root
     spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
 
 block_cipher = None
 
 a = Analysis(
-    ['{SCRIPT_DIR}/gui/run_gui.py'],
-    pathex=['{PROJECT_ROOT}'],
+    [r'{gui_script_str}'],
+    pathex=[r'{project_root_str}'],
     binaries=[],
     datas=[
-        ('{SCRIPT_DIR}/constants/operatorRAW.json', 'constants'),
+        (r'{constants_file_str}', 'constants'),
     ],
     hiddenimports=[
         'tkinter',
@@ -125,18 +148,27 @@ def build_linux_deb():
     run_command([sys.executable, "-m", "pip", "install", "stdeb"], check=False)
     
     # Build source distribution
+    # setup.py is in generation_two/ but needs to be run from project root
     print("Building source distribution...")
-    run_command([sys.executable, "setup.py", "sdist"], cwd=SCRIPT_DIR)
+    setup_py = SCRIPT_DIR / "setup.py"
+    if not setup_py.exists():
+        raise FileNotFoundError(f"setup.py not found: {setup_py}")
+    
+    # Run setup.py from project root so it can find the generation_two package
+    run_command([sys.executable, str(setup_py), "sdist"], cwd=PROJECT_ROOT)
     
     # Convert to deb
     print("Converting to DEB...")
-    dist_dir = SCRIPT_DIR / "dist"
+    # Source dist is created in PROJECT_ROOT/dist when run from project root
+    dist_dir = PROJECT_ROOT / "dist"
     tar_files = list(dist_dir.glob("generation-two-*.tar.gz"))
     if not tar_files:
-        print("❌ Source distribution not found")
+        print(f"❌ Source distribution not found in {dist_dir}")
+        print(f"   Files in dist: {list(dist_dir.glob('*')) if dist_dir.exists() else 'dist/ does not exist'}")
         return
     
     tar_file = tar_files[0]
+    print(f"✓ Found source distribution: {tar_file}")
     run_command([sys.executable, "-m", "stdeb", str(tar_file.name)], cwd=dist_dir)
     
     # Find and move deb file
@@ -167,35 +199,124 @@ def build_macos_dmg():
         print("Installing PyInstaller...")
         run_command([sys.executable, "-m", "pip", "install", "pyinstaller"])
     
-    # Build app bundle
-    run_command([
-        sys.executable, "-m", "PyInstaller",
-        "--name=GenerationTwo",
-        "--windowed",
-        "--onedir",
-        f"--add-data={SCRIPT_DIR}/constants/operatorRAW.json:constants",
-        str(SCRIPT_DIR / "gui/run_gui.py")
-    ], cwd=PROJECT_ROOT)
+    # Verify files exist
+    gui_script = SCRIPT_DIR / "gui" / "run_gui.py"
+    constants_file = SCRIPT_DIR / "constants" / "operatorRAW.json"
+    
+    if not gui_script.exists():
+        raise FileNotFoundError(f"GUI script not found: {gui_script}")
+    if not constants_file.exists():
+        print(f"❌ Constants file not found: {constants_file}")
+        print(f"   Looking in: {SCRIPT_DIR}")
+        if SCRIPT_DIR.exists():
+            print(f"   Available files in constants/: {list((SCRIPT_DIR / 'constants').glob('*')) if (SCRIPT_DIR / 'constants').exists() else 'constants/ does not exist'}")
+        raise FileNotFoundError(f"Constants file not found: {constants_file}")
+    
+    print(f"✓ Found constants file: {constants_file}")
+    
+    # Use absolute paths and ensure they're properly formatted
+    gui_script_abs = gui_script.resolve()
+    constants_file_abs = constants_file.resolve()
+    project_root_abs = PROJECT_ROOT.resolve()
+    
+    gui_script_str = str(gui_script_abs).replace('\\', '/')
+    constants_file_str = str(constants_file_abs).replace('\\', '/')
+    project_root_str = str(project_root_abs).replace('\\', '/')
+    
+    print(f"  GUI script: {gui_script_abs}")
+    print(f"  Constants: {constants_file_abs}")
+    print(f"  Project root: {project_root_abs}")
+    
+    # Create spec file for macOS (similar to Windows approach)
+    spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
+
+block_cipher = None
+
+a = Analysis(
+    [r'{gui_script_str}'],
+    pathex=[r'{project_root_str}'],
+    binaries=[],
+    datas=[
+        (r'{constants_file_str}', 'constants'),
+    ],
+    hiddenimports=[
+        'tkinter',
+        'tkinter.ttk',
+        'generation_two',
+        'generation_two.gui',
+        'generation_two.core',
+        'generation_two.ollama',
+        'generation_two.data_fetcher',
+        'generation_two.storage',
+    ],
+    hookspath=[],
+    hooksconfig={{}},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+app = BUNDLE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name='GenerationTwo',
+    icon=None,
+    bundle_identifier='com.worldquant.generationtwo',
+)
+"""
+    
+    spec_file = PROJECT_ROOT / "generation_two_macos.spec"
+    spec_file.write_text(spec_content)
+    print(f"✓ Created spec file: {spec_file}")
+    
+    # Build app bundle using spec file
+    print(f"✓ Building with spec file: {spec_file}")
+    run_command(
+        [sys.executable, "-m", "PyInstaller", "--clean", "--windowed", str(spec_file)],
+        cwd=PROJECT_ROOT
+    )
     
     # Create DMG using create-dmg (requires: brew install create-dmg)
     print("Creating DMG...")
     app_path = PROJECT_ROOT / "dist" / "GenerationTwo.app"
     dmg_path = SCRIPT_DIR / "dist" / "generation-two.dmg"
-    if app_path.exists():
-        dmg_path.parent.mkdir(exist_ok=True, parents=True)
-        run_command([
-            "create-dmg",
-            "--volname", "Generation Two",
-            "--window-pos", "200", "120",
-            "--window-size", "800", "400",
-            "--icon-size", "100",
-            "--app-drop-link", "600", "185",
-            str(dmg_path),
-            str(app_path)
-        ], check=False)
+    
+    if not app_path.exists():
+        print(f"❌ App bundle not found: {app_path}")
+        print(f"   Checking dist directory: {PROJECT_ROOT / 'dist'}")
+        if (PROJECT_ROOT / "dist").exists():
+            print(f"   Files in dist: {list((PROJECT_ROOT / 'dist').iterdir())}")
+        raise FileNotFoundError(f"App bundle not found: {app_path}")
+    
+    print(f"✓ Found app bundle: {app_path}")
+    dmg_path.parent.mkdir(exist_ok=True, parents=True)
+    
+    # Try to create DMG
+    dmg_result = run_command([
+        "create-dmg",
+        "--volname", "Generation Two",
+        "--window-pos", "200", "120",
+        "--window-size", "800", "400",
+        "--icon-size", "100",
+        "--app-drop-link", "600", "185",
+        str(dmg_path),
+        str(app_path)
+    ], check=False)
+    
+    if dmg_result and dmg_path.exists():
         print(f"✅ macOS DMG built: {dmg_path}")
     else:
-        print(f"❌ App bundle not found: {app_path}")
+        print(f"⚠️  DMG creation may have failed, but app bundle is available at: {app_path}")
+        print("   You can manually create a DMG or distribute the .app bundle directly")
 
 def main():
     """Main build function"""

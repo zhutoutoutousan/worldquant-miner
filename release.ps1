@@ -252,22 +252,37 @@ if (-not $SkipVersionUpdate -and $newVersion -ne $currentVersion) {
 }
 
 # Success message
+$repoUrl = git config --get remote.origin.url
+$repoPath = $repoUrl -replace '.*[:/]([^/]+/[^/]+?)(?:\.git)?$', '$1'
+
 Write-ColorOutput Green @"
 
 ╔═══════════════════════════════════════════════════════════╗
-║                    Release Created!                       ║
+║                    Tag Created!                           ║
 ╚═══════════════════════════════════════════════════════════╝
 
 Version: $newVersion
 Tag: $tagName
 
-GitHub Actions will now:
+GitHub Actions should now:
   ✓ Build Windows EXE
   ✓ Build Linux DEB
   ✓ Build macOS DMG
   ✓ Create GitHub Release
 
 Monitor progress at:
-  https://github.com/$(git config --get remote.origin.url -replace '.*[:/]([^/]+/[^/]+?)(?:\.git)?$', '$1')/actions
+  https://github.com/$repoPath/actions
 
 "@
+
+# Check if user wants to verify/create release
+Write-ColorOutput Yellow "`nNote: If the release isn't created automatically, you can:"
+Write-Host "  1. Wait a few minutes for GitHub Actions to complete"
+Write-Host "  2. Check Actions tab to see if workflow is running"
+Write-Host "  3. Manually create release with: .\create_release.ps1 -Version $newVersion"
+
+$createNow = Read-Host "`nCreate release now (without waiting for builds)? (y/n)"
+if ($createNow -eq "y") {
+    Write-ColorOutput Cyan "`nCreating release now..."
+    & "$PSScriptRoot\create_release.ps1" -Version $newVersion -CheckWorkflow
+}
